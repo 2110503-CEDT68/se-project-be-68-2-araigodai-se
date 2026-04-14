@@ -31,6 +31,35 @@ const UserSchema = new mongoose.Schema({
         enum: ['user', 'admin'],
         default: 'user'
     },
+    isActive: {
+        type: Boolean,
+        default: true
+    },
+    // Thai address fields
+    houseNumber: {
+        type: String
+    },
+    village: {
+        type: String
+    },
+    lane: {
+        type: String  // ซอย (Soi)
+    },
+    road: {
+        type: String  // ถนน (Thanon)
+    },
+    subDistrict: {
+        type: String  // ตำบล/แขวง (Tambon/Khwaeng)
+    },
+    district: {
+        type: String  // อำเภอ/เขต (Amphoe/Khet)
+    },
+    province: {
+        type: String  // จังหวัด (Changwat)
+    },
+    postalCode: {
+        type: String  // รหัสไปรษณีย์
+    },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
     createdAt: {
