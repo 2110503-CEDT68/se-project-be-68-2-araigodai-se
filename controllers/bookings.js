@@ -169,6 +169,7 @@ exports.updateBooking = async (req, res, next) => {
 // @desc    Delete booking
 // @route   DELETE /api/v1/bookings/:id
 // @access  Private
+
 exports.deleteBooking = async (req, res, next) => {
     try {
         const booking = await Booking.findById(req.params.id);
