@@ -1,4 +1,4 @@
-// This is your Prisma schema file,
+// Prisma Schema
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -10,15 +10,21 @@ datasource db {
   url      = env("MONGO_URI")
 }
 
+enum Role {
+  user
+  owner
+  admin
+}
+
 model User {
   id                  String    @id @default(auto()) @map("_id") @db.ObjectId
   name                String
   telephone           String
   email               String    @unique
   password            String
-  role                String    @default("user")
+  role                Role      @default(user) 
   isActive            Boolean   @default(true)
-  
+
   // Thai address fields
   houseNumber         String?
   village             String?
@@ -28,39 +34,96 @@ model User {
   district            String?   // อำเภอ/เขต (Amphoe/Khet)
   province            String?   // จังหวัด (Changwat)
   postalCode          String?   // รหัสไปรษณีย์
-  
+
   resetPasswordToken  String?
   resetPasswordExpire DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+
   bookings            Booking[]
+  hotels              Hotel[]            @relation("OwnerHotels")
+  bookingRequests     BookingRequest[]   @relation("RequestedByUser")
 
   @@map("users")
 }
 
 model Hotel {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  name      String    @unique
-  address   String
-  telephone String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  bookings  Booking[]
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  name          String    @unique
+  address       String
+  telephone     String
+
+  // (US4-5)
+  description   String?
+  amenities     String[]  @default([])
+
+  pricePerNight Float?
+
+  ownerId       String?   @db.ObjectId
+  owner         User?     @relation("OwnerHotels", fields: [ownerId], references: [id])
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  bookings      Booking[]
 
   @@map("hotels")
 }
 
 model Booking {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  id             String    @id @default(auto()) @map("_id") @db.ObjectId
   checkInDate    DateTime
   numberOfNights Int
-  userId         String   @db.ObjectId
-  hotelId        String   @db.ObjectId
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
-  user  User  @relation(fields: [userId], references: [id])
-  hotel Hotel @relation(fields: [hotelId], references: [id])
+
+  // booking lifecycle
+  status             String    @default("confirmed")
+  // "confirmed" | "pending" | "cancelled"
+
+  cancelledBy        String?
+  // "owner" | "user" — set เมื่อ status = "cancelled"
+  // owner cancel โดยตรง (US4-3) → "owner"
+  // owner approve คำขอลบจาก user   → "user"
+
+  cancellationReason String?
+  // required เมื่อ cancelledBy = "owner" (US4-3)
+
+  userId         String    @db.ObjectId
+  hotelId        String    @db.ObjectId
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user           User      @relation(fields: [userId], references: [id])
+  hotel          Hotel     @relation(fields: [hotelId], references: [id])
+
+  // booking requests จาก user
+  bookingRequests BookingRequest[]
 
   @@map("bookings")
+}
+
+// คำขอแก้ไข / ยกเลิกจาก user (ต้อง owner อนุมัติ)
+model BookingRequest {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  bookingId         String    @db.ObjectId
+  booking           Booking   @relation(fields: [bookingId], references: [id])
+
+  type              String
+  // "edit" | "delete"
+
+  status            String    @default("pending")
+  // "pending" | "approved" | "rejected"
+  // หมายเหตุ: status นี้แยกออกจาก Booking.status โดยสิ้นเชิง
+
+  requestedBy       String    @db.ObjectId
+  requestedByUser   User      @relation("RequestedByUser", fields: [requestedBy], references: [id])
+
+  // ✅ ข้อมูลที่ขอแก้ไข (ใช้เมื่อ type = "edit")
+  newCheckInDate    DateTime?
+  newNumberOfNights Int?
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@map("booking_requests")
 }

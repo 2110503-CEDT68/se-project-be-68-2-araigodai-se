@@ -21,6 +21,24 @@ const BookingSchema = new mongoose.Schema({
         ref: 'Hotel',
         required: true
     },
+
+    status: {
+        type: String,
+        enum: ['confirmed', 'pending', 'cancelled'],
+        default: 'confirmed'
+    },
+
+    cancelledBy: {
+        type: String,
+        enum: ['owner', 'user'],
+        default: null
+    },
+
+    cancellationReason: {
+        type: String,
+        default: null
+    },
+
     createdAt: {
         type: Date,
         default: Date.now

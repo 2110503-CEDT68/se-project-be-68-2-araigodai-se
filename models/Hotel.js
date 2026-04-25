@@ -15,6 +15,26 @@ const HotelSchema = new mongoose.Schema({
     telephone: {
         type: String,
         required: [true, 'Please add a telephone number']
+    },
+
+    // เพิ่มใหม่ (US4-5)
+    description: {
+        type: String
+    },
+    amenities: {
+        type: [String],
+        default: []
+    },
+
+    // เพิ่มใหม่ — ใช้คำนวณ Financial Report (US4-2)
+    pricePerNight: {
+        type: Number
+    },
+
+    // เพิ่มใหม่ — owner ของโรงแรม
+    ownerId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
     }
 }, {
     timestamps: true,
