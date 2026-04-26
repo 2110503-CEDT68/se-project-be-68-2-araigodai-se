@@ -44,11 +44,16 @@ const BookingSchema = new mongoose.Schema({
 
     cancelledBy: {
         type: String,
-        enum: ['owner', 'user'],
+        enum: ['owner', 'user', 'admin'],
         default: null
     },
 
     cancellationReason: {
+        type: String,
+        default: null
+    },
+    
+    updateReason: {
         type: String,
         default: null
     },

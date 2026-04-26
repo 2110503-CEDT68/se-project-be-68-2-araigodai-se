@@ -1,4 +1,5 @@
 const Booking = require('../models/Booking');
+const BookingRequest = require('../models/BookingRequest');
 const Hotel = require('../models/Hotel');
 
 const HOUR_IN_MS = 60 * 60 * 1000;
@@ -34,7 +35,15 @@ const applyCancellationPolicy = async (booking, user, reason) => {
         return {
             success: false,
             code: 400,
-            message: 'This booking is already cancelled'
+            message: 'This booking cannot be cancelled'
+        };
+    }
+
+    if (user.role === 'admin' && !reason) {
+        return {
+            success: false,
+            code: 400,
+            message: 'Please provide a reason for canceling booking.'
         };
     }
 
@@ -44,7 +53,7 @@ const applyCancellationPolicy = async (booking, user, reason) => {
     const refundAmount = booking.paymentStatus === 'unpaid' ? 0 : toMoney(paidAmount * refundRate);
 
     booking.status = 'cancelled';
-    booking.cancelledBy = user.role === 'admin' || user.role === 'owner' ? 'owner' : 'user';
+    booking.cancelledBy = user.role === 'admin' ? 'admin' : (user.role === 'owner' ? 'owner' : 'user');
     booking.cancellationReason = reason || null;
     booking.cancelledAt = new Date();
     booking.pendingPaymentAmount = 0;
@@ -271,6 +280,14 @@ exports.updatePaidBooking = async (req, res, next) => {
             });
         }
 
+        const reasonForChange = req.body.updateReason || req.body.reason;
+        if (req.user.role === 'admin' && !reasonForChange) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide a reason for this change.'
+            });
+        }
+
         if (booking.status === 'cancelled') {
             return res.status(400).json({
                 success: false,
@@ -318,6 +335,10 @@ exports.updatePaidBooking = async (req, res, next) => {
         }
         if (typeof updates.numberOfNights !== 'undefined') {
             booking.numberOfNights = updates.numberOfNights;
+        }
+
+        if (req.user.role === 'admin') {
+            booking.updateReason = reasonForChange;
         }
 
         const pricePerNight = Number(booking.hotel?.pricePerNight) || 0;
@@ -400,6 +421,16 @@ exports.updateBooking = async (req, res, next) => {
             });
         }
 
+        if (req.user.role === 'admin') {
+            if (!req.body.updateReason && !req.body.reason) { // check for updateReason or reason
+                return res.status(400).json({
+                    success: false,
+                    message: 'Please provide a reason for this change.'
+                });
+            }
+            req.body.updateReason = req.body.updateReason || req.body.reason;
+        }
+
         if (req.body.numberOfNights && req.body.numberOfNights > 3) {
             return res.status(400).json({
                 success: false,
@@ -474,6 +505,95 @@ exports.deleteBooking = async (req, res, next) => {
         return res.status(500).json({
             success: false,
             message: 'Cannot delete booking'
+        });
+    }
+};
+
+// @desc    Accept or decline user booking request
+// @route   PUT /api/v1/requests/:requestId/respond
+// @access  Private (Admin only)
+exports.respondToBookingRequest = async (req, res, next) => {
+    try {
+        const { requestId } = req.params;
+        const { action, reason } = req.body; // action: 'approve' or 'reject'
+
+        if (req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to perform this operation'
+            });
+        }
+
+        const request = await BookingRequest.findById(requestId).populate('booking');
+        if (!request) {
+            return res.status(404).json({
+                success: false,
+                message: `No request with id of ${requestId}`
+            });
+        }
+
+        if (request.status !== 'pending') {
+            return res.status(400).json({
+                success: false,
+                message: 'This request has already been processed.'
+            });
+        }
+
+        if (!reason) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide a reason for this decision.'
+            });
+        }
+
+        if (!['approve', 'reject'].includes(action)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid action. Use "approve" or "reject".'
+            });
+        }
+
+        request.status = action === 'approve' ? 'approved' : 'rejected';
+        request.adminReason = reason;
+
+        if (action === 'approve') {
+            const booking = await Booking.findById(request.booking._id);
+            if (!booking) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Booking associated with this request not found'
+                });
+            }
+
+            if (request.type === 'edit') {
+                if (request.newCheckInDate) booking.checkInDate = request.newCheckInDate;
+                if (request.newNumberOfNights) booking.numberOfNights = request.newNumberOfNights;
+                booking.updateReason = `Approved user edit request: ${reason}`;
+                await booking.save();
+            } else if (request.type === 'delete') {
+                const cancellation = await applyCancellationPolicy(booking, req.user, `Approved user cancel request: ${reason}`);
+                if (!cancellation.success) {
+                    return res.status(cancellation.code).json({
+                        success: false,
+                        message: cancellation.message
+                    });
+                }
+            }
+        }
+
+        await request.save();
+
+        // TODO: Send notification to the user about request response
+
+        res.status(200).json({
+            success: true,
+            data: request
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: 'Cannot process request'
         });
     }
 };

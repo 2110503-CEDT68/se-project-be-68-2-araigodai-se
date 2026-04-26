@@ -1,5 +1,5 @@
 const express = require('express');
-const { getBookings, getBooking, addBooking, updateBooking, deleteBooking, cancelBooking, updatePaidBooking } = require('../controllers/bookings');
+const { getBookings, getBooking, addBooking, updateBooking, deleteBooking, cancelBooking, updatePaidBooking, respondToBookingRequest } = require('../controllers/bookings');
 
 const router = express.Router({ mergeParams: true });
 
@@ -344,5 +344,52 @@ router.post('/:id/cancel', protect, authorize('admin', 'user', 'owner'), cancelB
  *         description: Booking not found
  */
 router.patch('/:id/paid-update', protect, authorize('admin', 'user', 'owner'), updatePaidBooking);
+
+/**
+ * @swagger
+ * /requests/{requestId}/respond:
+ *   put:
+ *     summary: Respond to a user booking request (Accept/Decline)
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Admin only endpoint to accept or decline a booking request made by a user.
+ *       Require an action ("approve" or "reject") and a reason.
+ *     parameters:
+ *       - in: path
+ *         name: requestId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Request ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *               - reason
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [approve, reject]
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Request responded successfully
+ *       400:
+ *         description: Invalid input or missing reason
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - Not admin
+ *       404:
+ *         description: Request not found
+ */
+router.put('/requests/:requestId/respond', protect, authorize('admin'), respondToBookingRequest);
 
 module.exports = router;

@@ -21,6 +21,11 @@ const BookingRequestSchema = new mongoose.Schema({
         ref: 'User',
         required: true
     },
+    
+    adminReason: {
+        type: String,
+        default: null
+    },
 
     // ใช้เมื่อ type = "edit"
     newCheckInDate: {
