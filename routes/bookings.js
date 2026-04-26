@@ -1,5 +1,5 @@
 const express = require('express');
-const { getBookings, getBooking, addBooking, updateBooking, deleteBooking } = require('../controllers/bookings');
+const { getBookings, getBooking, addBooking, updateBooking, deleteBooking, cancelBooking, updatePaidBooking } = require('../controllers/bookings');
 
 const router = express.Router({ mergeParams: true });
 
@@ -223,11 +223,15 @@ router.route('/')
  *       404:
  *         description: Booking not found
  *   delete:
- *     summary: Delete booking
+ *     summary: Cancel booking via delete endpoint
  *     tags: [Bookings]
  *     security:
  *       - bearerAuth: []
- *     description: Users can only delete their own bookings, admins can delete any
+ *     description: |
+ *       Soft-cancel booking (no hard delete) using refund policy:
+ *       - Cancel >= 72 hours before check-in: 100% refund
+ *       - Cancel < 24 hours before check-in: 0% refund
+ *       - Cancel between 24 and 72 hours: 50% refund
  *     parameters:
  *       - in: path
  *         name: id
@@ -237,7 +241,7 @@ router.route('/')
  *         description: Booking ID
  *     responses:
  *       200:
- *         description: Booking deleted successfully
+ *         description: Booking cancelled and refund calculated
  *       401:
  *         description: Not authorized
  *       403:
@@ -249,5 +253,96 @@ router.route('/:id')
     .get(protect, getBooking)
     .put(protect, authorize('admin', 'user'), updateBooking)
     .delete(protect, authorize('admin', 'user'), deleteBooking);
+
+/**
+ * @swagger
+ * /bookings/{id}/cancel:
+ *   post:
+ *     summary: Cancel a booking with refund policy
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Refund policy:
+ *       - Cancel >= 72 hours before check-in: 100% refund
+ *       - Cancel < 24 hours before check-in: 0% refund
+ *       - Cancel between 24 and 72 hours: 50% refund
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Booking ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Booking cancelled and refund calculated
+ *       400:
+ *         description: Booking already cancelled
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - Not booking owner
+ *       404:
+ *         description: Booking not found
+ */
+router.post('/:id/cancel', protect, authorize('admin', 'user', 'owner'), cancelBooking);
+
+/**
+ * @swagger
+ * /bookings/{id}/paid-update:
+ *   patch:
+ *     summary: Update already-paid booking and calculate price difference
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     description: |
+ *       Recalculates total price after booking change.
+ *       - If new price > old price: marks booking as pending additional payment
+ *       - If new price < old price: issues refund and marks partial_refund
+ *       - If price unchanged: keeps booking as paid/confirmed
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Booking ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               checkInDate:
+ *                 type: string
+ *                 format: date-time
+ *               numberOfNights:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 3
+ *     responses:
+ *       200:
+ *         description: Paid booking updated and adjustment calculated
+ *       400:
+ *         description: Invalid input or booking not eligible for paid update
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - Not booking owner
+ *       404:
+ *         description: Booking not found
+ */
+router.patch('/:id/paid-update', protect, authorize('admin', 'user', 'owner'), updatePaidBooking);
 
 module.exports = router;

@@ -1,6 +1,79 @@
 const Booking = require('../models/Booking');
 const Hotel = require('../models/Hotel');
 
+const HOUR_IN_MS = 60 * 60 * 1000;
+
+const toMoney = (amount) => Math.round((amount + Number.EPSILON) * 100) / 100;
+
+const getRefundRateByPolicy = (checkInDate) => {
+    const hoursBeforeCheckIn = (new Date(checkInDate).getTime() - Date.now()) / HOUR_IN_MS;
+
+    if (hoursBeforeCheckIn >= 72) {
+        return 1;
+    }
+
+    if (hoursBeforeCheckIn < 24) {
+        return 0;
+    }
+
+    return 0.5;
+};
+
+const getBookingTotalPrice = (booking) => {
+    const byField = Number(booking.totalPrice);
+    if (byField > 0) {
+        return byField;
+    }
+
+    const fallback = (Number(booking.hotel?.pricePerNight) || 0) * Number(booking.numberOfNights || 0);
+    return toMoney(fallback);
+};
+
+const applyCancellationPolicy = async (booking, user, reason) => {
+    if (booking.status === 'cancelled') {
+        return {
+            success: false,
+            code: 400,
+            message: 'This booking is already cancelled'
+        };
+    }
+
+    const fallbackTotalPrice = getBookingTotalPrice(booking);
+    const paidAmount = Number(booking.amountPaid) > 0 ? Number(booking.amountPaid) : fallbackTotalPrice;
+    const refundRate = getRefundRateByPolicy(booking.checkInDate);
+    const refundAmount = booking.paymentStatus === 'unpaid' ? 0 : toMoney(paidAmount * refundRate);
+
+    booking.status = 'cancelled';
+    booking.cancelledBy = user.role === 'admin' || user.role === 'owner' ? 'owner' : 'user';
+    booking.cancellationReason = reason || null;
+    booking.cancelledAt = new Date();
+    booking.pendingPaymentAmount = 0;
+    booking.lastPriceDifference = 0;
+    booking.refundRate = refundRate;
+    booking.refundAmount = refundAmount;
+
+    if (booking.paymentStatus !== 'unpaid') {
+        if (refundRate === 1) {
+            booking.paymentStatus = 'refunded';
+        } else if (refundRate === 0.5) {
+            booking.paymentStatus = 'partial_refund';
+        }
+    }
+
+    if (booking.paymentStatus === 'refunded') {
+        booking.amountPaid = 0;
+    } else if (booking.paymentStatus === 'partial_refund') {
+        booking.amountPaid = toMoney(Math.max(0, paidAmount - refundAmount));
+    }
+
+    await booking.save();
+
+    return {
+        success: true,
+        booking
+    };
+};
+
 // @desc    Get all bookings
 // @route   GET /api/v1/bookings (admin) or /api/v1/users/:userId/bookings (user)
 // @access  Private
@@ -103,6 +176,10 @@ exports.addBooking = async (req, res, next) => {
         }
 
         req.body.user = req.user.id;
+        const pricePerNight = Number(hotel.pricePerNight) || 0;
+        req.body.totalPrice = toMoney(pricePerNight * req.body.numberOfNights);
+        req.body.amountPaid = req.body.totalPrice;
+        req.body.paymentStatus = 'paid';
 
         const booking = await Booking.create(req.body);
 
@@ -115,6 +192,189 @@ exports.addBooking = async (req, res, next) => {
         return res.status(500).json({
             success: false,
             message: error.message || 'Cannot create booking'
+        });
+    }
+};
+
+// @desc    Cancel booking with refund policy
+// @route   POST /api/v1/bookings/:id/cancel
+// @access  Private
+exports.cancelBooking = async (req, res, next) => {
+    try {
+        const booking = await Booking.findById(req.params.id).populate({
+            path: 'hotel',
+            select: 'pricePerNight name'
+        });
+
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: `No booking with the id of ${req.params.id}`
+            });
+        }
+
+        if (booking.user.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: `User ${req.user.id} is not authorized to cancel this booking`
+            });
+        }
+
+        const cancellation = await applyCancellationPolicy(booking, req.user, req.body.reason);
+
+        if (!cancellation.success) {
+            return res.status(cancellation.code).json({
+                success: false,
+                message: cancellation.message
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            policy: {
+                fullRefundHours: '>= 72',
+                noRefundHours: '< 24',
+                partialRefundHours: '>= 24 and < 72'
+            },
+            data: cancellation.booking
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: 'Cannot cancel booking'
+        });
+    }
+};
+
+// @desc    Update already-paid booking and compute payment difference
+// @route   PATCH /api/v1/bookings/:id/paid-update
+// @access  Private
+exports.updatePaidBooking = async (req, res, next) => {
+    try {
+        const booking = await Booking.findById(req.params.id).populate({
+            path: 'hotel',
+            select: 'pricePerNight name'
+        });
+
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: `No booking with the id of ${req.params.id}`
+            });
+        }
+
+        if (booking.user.toString() !== req.user.id && req.user.role !== 'admin') {
+            return res.status(403).json({
+                success: false,
+                message: `User ${req.user.id} is not authorized to update this booking`
+            });
+        }
+
+        if (booking.status === 'cancelled') {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot update a cancelled booking'
+            });
+        }
+
+        const hasPaidAmount = Number(booking.amountPaid) > 0;
+        const isPaidState = ['paid', 'partial_refund', 'pending_additional_payment'].includes(booking.paymentStatus);
+        if (!hasPaidAmount && !isPaidState) {
+            return res.status(400).json({
+                success: false,
+                message: 'This endpoint is for already-paid bookings'
+            });
+        }
+
+        const updates = {};
+        if (req.body.checkInDate) {
+            updates.checkInDate = req.body.checkInDate;
+        }
+
+        if (typeof req.body.numberOfNights !== 'undefined') {
+            const newNights = Number(req.body.numberOfNights);
+            if (newNights > 3 || newNights < 1 || Number.isNaN(newNights)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Number of nights must be between 1 and 3'
+                });
+            }
+            updates.numberOfNights = newNights;
+        }
+
+        if (!Object.keys(updates).length) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide checkInDate or numberOfNights to update'
+            });
+        }
+
+        const oldTotalPrice = getBookingTotalPrice(booking);
+        const oldAmountPaid = Number(booking.amountPaid) > 0 ? Number(booking.amountPaid) : oldTotalPrice;
+
+        if (updates.checkInDate) {
+            booking.checkInDate = updates.checkInDate;
+        }
+        if (typeof updates.numberOfNights !== 'undefined') {
+            booking.numberOfNights = updates.numberOfNights;
+        }
+
+        const pricePerNight = Number(booking.hotel?.pricePerNight) || 0;
+        const newTotalPrice = toMoney(pricePerNight * booking.numberOfNights);
+        const priceDifference = toMoney(newTotalPrice - oldTotalPrice);
+
+        booking.totalPrice = newTotalPrice;
+        booking.lastPriceDifference = priceDifference;
+        booking.cancelledBy = null;
+        booking.cancellationReason = null;
+        booking.cancelledAt = null;
+
+        let action = 'no_price_change';
+        let pendingPaymentAmount = 0;
+        let refundIssued = 0;
+
+        if (priceDifference > 0) {
+            action = 'additional_payment_required';
+            pendingPaymentAmount = priceDifference;
+            booking.pendingPaymentAmount = pendingPaymentAmount;
+            booking.amountPaid = oldAmountPaid;
+            booking.status = 'pending';
+            booking.paymentStatus = 'pending_additional_payment';
+        } else if (priceDifference < 0) {
+            action = 'refund_issued';
+            refundIssued = Math.abs(priceDifference);
+            booking.pendingPaymentAmount = 0;
+            booking.amountPaid = toMoney(Math.max(0, oldAmountPaid - refundIssued));
+            booking.refundAmount = toMoney((Number(booking.refundAmount) || 0) + refundIssued);
+            booking.status = 'confirmed';
+            booking.paymentStatus = 'partial_refund';
+        } else {
+            booking.pendingPaymentAmount = 0;
+            booking.amountPaid = toMoney(Math.min(oldAmountPaid, newTotalPrice));
+            booking.status = 'confirmed';
+            booking.paymentStatus = 'paid';
+        }
+
+        await booking.save();
+
+        return res.status(200).json({
+            success: true,
+            adjustment: {
+                oldTotalPrice: toMoney(oldTotalPrice),
+                newTotalPrice,
+                priceDifference,
+                action,
+                pendingPaymentAmount,
+                refundIssued
+            },
+            data: booking
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            success: false,
+            message: 'Cannot update paid booking'
         });
     }
 };
@@ -166,13 +426,16 @@ exports.updateBooking = async (req, res, next) => {
 };
 
 
-// @desc    Delete booking
+// @desc    Delete booking (soft cancel with refund policy)
 // @route   DELETE /api/v1/bookings/:id
 // @access  Private
 
 exports.deleteBooking = async (req, res, next) => {
     try {
-        const booking = await Booking.findById(req.params.id);
+        const booking = await Booking.findById(req.params.id).populate({
+            path: 'hotel',
+            select: 'pricePerNight name'
+        });
 
         if (!booking) {
             return res.status(404).json({
@@ -184,15 +447,27 @@ exports.deleteBooking = async (req, res, next) => {
         if (booking.user.toString() !== req.user.id && req.user.role !== 'admin') {
             return res.status(403).json({
                 success: false,
-                message: `User ${req.user.id} is not authorized to delete this booking`
+                message: `User ${req.user.id} is not authorized to cancel this booking`
             });
         }
 
-        await booking.deleteOne();
+        const cancellation = await applyCancellationPolicy(booking, req.user, req.body.reason);
+
+        if (!cancellation.success) {
+            return res.status(cancellation.code).json({
+                success: false,
+                message: cancellation.message
+            });
+        }
 
         res.status(200).json({
             success: true,
-            data: {}
+            policy: {
+                fullRefundHours: '>= 72',
+                noRefundHours: '< 24',
+                partialRefundHours: '>= 24 and < 72'
+            },
+            data: cancellation.booking
         });
     } catch (error) {
         console.log(error);

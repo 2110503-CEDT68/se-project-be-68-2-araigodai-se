@@ -670,6 +670,536 @@
         }
       },
       "response": []
+    },
+    {
+      "name": "13 Setup Booking For Full Refund (>=72h)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const checkIn = new Date(Date.now() + (80 * 60 * 60 * 1000));",
+              "pm.collectionVariables.set('checkin_full_refund_iso', checkIn.toISOString());"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 201', () => pm.response.to.have.status(201));",
+              "pm.test('Create booking for full refund case', () => {",
+              "    const jsonData = pm.response.json();",
+              "    pm.collectionVariables.set('booking_full_refund_id', jsonData.data._id);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"checkInDate\":\"{{checkin_full_refund_iso}}\",\"numberOfNights\":1}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotels/{{hotel_id}}/bookings",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hotels",
+            "{{hotel_id}}",
+            "bookings"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "14 Cancel Booking Full Refund (>=72h)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+              "pm.test('Refund rate is 100%', () => {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.data.status).to.equal('cancelled');",
+              "    pm.expect(jsonData.data.refundRate).to.equal(1);",
+              "    pm.expect(jsonData.data.refundAmount).to.be.at.least(0);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"reason\":\"cancel full refund case\"}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_full_refund_id}}/cancel",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "bookings",
+            "{{booking_full_refund_id}}",
+            "cancel"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "15 Setup Booking For Partial Refund (24-72h)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const checkIn = new Date(Date.now() + (48 * 60 * 60 * 1000));",
+              "pm.collectionVariables.set('checkin_partial_refund_iso', checkIn.toISOString());"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 201', () => pm.response.to.have.status(201));",
+              "pm.test('Create booking for partial refund case', () => {",
+              "    const jsonData = pm.response.json();",
+              "    pm.collectionVariables.set('booking_partial_refund_id', jsonData.data._id);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"checkInDate\":\"{{checkin_partial_refund_iso}}\",\"numberOfNights\":1}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotels/{{hotel_id}}/bookings",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hotels",
+            "{{hotel_id}}",
+            "bookings"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "16 Cancel Booking Partial Refund (24-72h)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+              "pm.test('Refund rate is 50%', () => {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.data.status).to.equal('cancelled');",
+              "    pm.expect(jsonData.data.refundRate).to.equal(0.5);",
+              "    pm.expect(jsonData.data.refundAmount).to.be.at.least(0);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"reason\":\"cancel partial refund case\"}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_partial_refund_id}}/cancel",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "bookings",
+            "{{booking_partial_refund_id}}",
+            "cancel"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "17 Setup Booking For No Refund (<24h)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const checkIn = new Date(Date.now() + (10 * 60 * 60 * 1000));",
+              "pm.collectionVariables.set('checkin_no_refund_iso', checkIn.toISOString());"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 201', () => pm.response.to.have.status(201));",
+              "pm.test('Create booking for no refund case', () => {",
+              "    const jsonData = pm.response.json();",
+              "    pm.collectionVariables.set('booking_no_refund_id', jsonData.data._id);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"checkInDate\":\"{{checkin_no_refund_iso}}\",\"numberOfNights\":1}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotels/{{hotel_id}}/bookings",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hotels",
+            "{{hotel_id}}",
+            "bookings"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "18 Cancel Booking No Refund (<24h)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+              "pm.test('Refund rate is 0%', () => {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.data.status).to.equal('cancelled');",
+              "    pm.expect(jsonData.data.refundRate).to.equal(0);",
+              "    pm.expect(jsonData.data.refundAmount).to.equal(0);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"reason\":\"cancel no refund case\"}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_no_refund_id}}/cancel",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "bookings",
+            "{{booking_no_refund_id}}",
+            "cancel"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "19 Setup Booking For Paid Update (Increase Price)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const checkIn = new Date(Date.now() + (120 * 60 * 60 * 1000));",
+              "pm.collectionVariables.set('checkin_paid_update_iso', checkIn.toISOString());"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 201', () => pm.response.to.have.status(201));",
+              "pm.test('Booking for paid update setup created', () => {",
+              "    const jsonData = pm.response.json();",
+              "    pm.collectionVariables.set('booking_paid_update_id', jsonData.data._id);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"checkInDate\":\"{{checkin_paid_update_iso}}\",\"numberOfNights\":1}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotels/{{hotel_id}}/bookings",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hotels",
+            "{{hotel_id}}",
+            "bookings"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "20 Paid Update Booking Increase Price",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+              "pm.test('Paid update returns adjustment object', () => {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.adjustment).to.be.an('object');",
+              "    pm.expect(jsonData.adjustment.priceDifference).to.equal(jsonData.adjustment.newTotalPrice - jsonData.adjustment.oldTotalPrice);",
+              "    pm.expect(jsonData.adjustment.action).to.be.oneOf(['additional_payment_required', 'no_price_change']);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"numberOfNights\":3}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_paid_update_id}}/paid-update",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "bookings",
+            "{{booking_paid_update_id}}",
+            "paid-update"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "21 Setup Booking For Paid Update (Decrease Price)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "exec": [
+              "const checkIn = new Date(Date.now() + (140 * 60 * 60 * 1000));",
+              "pm.collectionVariables.set('checkin_paid_update_refund_iso', checkIn.toISOString());"
+            ],
+            "type": "text/javascript"
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 201', () => pm.response.to.have.status(201));",
+              "pm.test('Booking for paid refund setup created', () => {",
+              "    const jsonData = pm.response.json();",
+              "    pm.collectionVariables.set('booking_paid_refund_update_id', jsonData.data._id);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"checkInDate\":\"{{checkin_paid_update_refund_iso}}\",\"numberOfNights\":3}"
+        },
+        "url": {
+          "raw": "{{base_url}}/hotels/{{hotel_id}}/bookings",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "hotels",
+            "{{hotel_id}}",
+            "bookings"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "22 Paid Update Booking Decrease Price",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('Status code is 200', () => pm.response.to.have.status(200));",
+              "pm.test('Paid update supports refund path', () => {",
+              "    const jsonData = pm.response.json();",
+              "    pm.expect(jsonData.adjustment).to.be.an('object');",
+              "    pm.expect(jsonData.adjustment.priceDifference).to.equal(jsonData.adjustment.newTotalPrice - jsonData.adjustment.oldTotalPrice);",
+              "    pm.expect(jsonData.adjustment.action).to.be.oneOf(['refund_issued', 'no_price_change']);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{user_token}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"numberOfNights\":1}"
+        },
+        "url": {
+          "raw": "{{base_url}}/bookings/{{booking_paid_refund_update_id}}/paid-update",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "bookings",
+            "{{booking_paid_refund_update_id}}",
+            "paid-update"
+          ]
+        }
+      },
+      "response": []
     }
   ],
   "variable": [
@@ -695,6 +1225,46 @@
     },
     {
       "key": "admin_target_booking_id",
+      "value": ""
+    },
+    {
+      "key": "checkin_full_refund_iso",
+      "value": ""
+    },
+    {
+      "key": "checkin_partial_refund_iso",
+      "value": ""
+    },
+    {
+      "key": "checkin_no_refund_iso",
+      "value": ""
+    },
+    {
+      "key": "booking_full_refund_id",
+      "value": ""
+    },
+    {
+      "key": "booking_partial_refund_id",
+      "value": ""
+    },
+    {
+      "key": "booking_no_refund_id",
+      "value": ""
+    },
+    {
+      "key": "checkin_paid_update_iso",
+      "value": ""
+    },
+    {
+      "key": "checkin_paid_update_refund_iso",
+      "value": ""
+    },
+    {
+      "key": "booking_paid_update_id",
+      "value": ""
+    },
+    {
+      "key": "booking_paid_refund_update_id",
       "value": ""
     }
   ]
