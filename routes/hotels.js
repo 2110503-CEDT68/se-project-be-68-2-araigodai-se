@@ -1,5 +1,5 @@
 const express = require('express');
-const { getHotels, getHotel, createHotel, updateHotel, deleteHotel, getFinancialStats, exportFinancialCSV, getHotelDashboard, getAdminPlatformStats} = require('../controllers/hotels');
+const { getHotels, getHotel, createHotel, updateHotel, deleteHotel, getFinancialStats, exportFinancialCSV, getHotelDashboard, getAdminPlatformStats, getMyHotels} = require('../controllers/hotels');
 
 const bookingRouter = require('./bookings');
 const router = express.Router();
@@ -139,6 +139,9 @@ router.route('/')
 // treating the literal segment (e.g. "admin") as a dynamic parameter.
 router.route('/admin/dashboard')
     .get(protect, authorize('admin'), getAdminPlatformStats);
+
+router.route('/my-hotels')
+    .get(protect, authorize('owner'), getMyHotels);
 
 /**
  * @swagger

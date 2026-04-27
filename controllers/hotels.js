@@ -119,11 +119,15 @@ exports.updateHotel = async (req, res, next) => {
             });
         }
 
-        if (req.user.role === 'owner' && hotel._id.toString() !== req.user.hotel.toString()) {
-            return res.status(403).json({
-                success: false,
-                message: `Owner ${req.user.id} is not authorized to update this hotel`
-            });
+        // Check if owner is authorized to update this hotel
+        if (req.user.role === 'owner') {
+            // Owner can only update hotels they own
+            if (!hotel.ownerId || hotel.ownerId.toString() !== req.user.id.toString()) {
+                return res.status(403).json({
+                    success: false,
+                    message: `You are not authorized to update this hotel`
+                });
+            }
         }
 
         hotel = await Hotel.findByIdAndUpdate(
@@ -190,8 +194,10 @@ exports.getFinancialStats = async (req, res, next) => {
         }
 
         // ตรวจสอบสิทธิ์ว่า Owner คนนี้เป็นเจ้าของโรงแรมนี้จริงๆ (ถ้าไม่ใช่ Admin)
-        if (req.user.role === 'owner' && req.user.hotel.toString() !== hotelId) {
-            return res.status(403).json({ success: false, message: 'Not authorized to view financials for this hotel' });
+        if (req.user.role === 'owner') {
+            if (!hotel.ownerId || hotel.ownerId.toString() !== req.user.id.toString()) {
+                return res.status(403).json({ success: false, message: 'Not authorized to view financials for this hotel' });
+            }
         }
 
         // 2. สร้างเงื่อนไขการค้นหา (เอาเฉพาะที่จ่ายเงินแล้ว)
@@ -307,12 +313,18 @@ exports.getHotelDashboard = async (req, res, next) => {
     try {
         const { hotelId } = req.params;
 
-        // 1. ตรวจสอบสิทธิ์ว่า Owner คนนี้ดูแลโรงแรมนี้จริงๆ
-        if (req.user.role === 'owner' && req.user.hotel.toString() !== hotelId) {
-            return res.status(403).json({ 
-                success: false, 
-                message: 'Not authorized to view dashboard for this hotel' 
-            });
+        // Check authorization for owners
+        if (req.user.role === 'owner') {
+            const hotel = await Hotel.findById(hotelId);
+            if (!hotel) {
+                return res.status(404).json({ success: false, message: 'Hotel not found' });
+            }
+            if (!hotel.ownerId || hotel.ownerId.toString() !== req.user.id.toString()) {
+                return res.status(403).json({ 
+                    success: false, 
+                    message: 'Not authorized to view dashboard for this hotel' 
+                });
+            }
         }
 
         // 2. นับจำนวน Bookings แยกตามสถานะ (ใช้แสดงเป็นตัวเลขสรุป)
@@ -349,6 +361,27 @@ exports.getHotelDashboard = async (req, res, next) => {
 
     } catch (err) {
         res.status(500).json({ success: false, message: err.message });
+    }
+};
+
+// @desc    Get hotels owned by the current owner
+// @route   GET /api/v1/hotels/my-hotels
+// @access  Private (Owner only)
+exports.getMyHotels = async (req, res, next) => {
+    try {
+        // Find all hotels where ownerId matches the logged-in user's ID
+        const hotels = await Hotel.find({ ownerId: req.user.id });
+
+        res.status(200).json({
+            success: true,
+            count: hotels.length,
+            data: hotels
+        });
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            message: err.message
+        });
     }
 };
 

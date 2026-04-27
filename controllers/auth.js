@@ -218,31 +218,29 @@ exports.updateUserRole = async (req, res, next) => {
             });
         }
 
-        let updateData = { role };
-
-        // 2. จัดการเงื่อนไขตาม Role
-        if (role === 'owner') {
-            // hotelId is optional — assign the hotel if provided; role is set either way
-            if (hotelId) {
-                updateData.hotel = hotelId;
-            }
-        } else if (role === 'user') {
-            // Revoke owner — remove hotel linkage
-            updateData.$unset = { hotel: 1 };
-        }
-
-        // 3. อัปเดตข้อมูล User ลงฐานข้อมูล
+        // 2. อัปเดต Role ของ User
         const user = await User.findByIdAndUpdate(
             userId,
-            role === 'user' ? { role: 'user', $unset: { hotel: 1 } } : updateData,
+            { role },
             { 
                 returnDocument: 'after', 
                 runValidators: true 
             }
-        ).select('-password'); // ไม่ส่ง password กลับไปเพื่อความปลอดภัย
+        ).select('-password');
 
         if (!user) {
             return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        // 3. จัดการ Hotel ownership
+        const Hotel = require('../models/Hotel');
+        
+        if (role === 'owner' && hotelId) {
+            // Assign hotel to this owner
+            await Hotel.findByIdAndUpdate(hotelId, { ownerId: userId });
+        } else if (role === 'user') {
+            // Revoke ownership - remove this user from all hotels they own
+            await Hotel.updateMany({ ownerId: userId }, { $unset: { ownerId: 1 } });
         }
 
         res.status(200).json({
