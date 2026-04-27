@@ -16,7 +16,8 @@ const sendTokenResponse = (user, statusCode, res) =>{
 
 exports.register = async(req, res, next) => {
     try{
-        const { name, telephone, email, password, role } = req.body;
+        const { name, telephone, email, password } = req.body;
+        // role is always 'user' on self-registration — never trust client-provided role
 
         // Check if email is already registered with a deactivated account
         const existingUser = await User.findOne({ email });
@@ -32,7 +33,7 @@ exports.register = async(req, res, next) => {
             telephone,
             email,
             password,
-            role
+            role: 'user'   // always user — admin assigns roles separately
         });
 
         sendTokenResponse(user, 200, res);
