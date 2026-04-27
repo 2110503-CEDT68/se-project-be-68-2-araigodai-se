@@ -443,7 +443,7 @@ exports.updateBooking = async (req, res, next) => {
         }
 
         booking = await Booking.findByIdAndUpdate(req.params.id, req.body, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true
         });
 
@@ -513,8 +513,40 @@ exports.deleteBooking = async (req, res, next) => {
     }
 };
 
+// @desc    Get all booking requests — optionally filter by status (?status=pending|approved|rejected)
+// @route   GET /api/v1/bookings/requests
+// @access  Private (Admin only)
+exports.getBookingRequests = async (req, res, next) => {
+    try {
+        const filter = {};
+        if (req.query.status) {
+            filter.status = req.query.status;
+        }
+
+        const requests = await BookingRequest.find(filter)
+            .populate({
+                path: 'booking',
+                select: 'checkInDate numberOfNights hotel status',
+                populate: { path: 'hotel', select: 'name' }
+            })
+            .populate({
+                path: 'requestedBy',
+                select: 'name email'
+            })
+            .sort('-createdAt');
+
+        res.status(200).json({
+            success: true,
+            count: requests.length,
+            data: requests
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 // @desc    Accept or decline user booking request
-// @route   PUT /api/v1/requests/:requestId/respond
+// @route   PUT /api/v1/bookings/requests/:requestId/respond
 // @access  Private (Admin only)
 exports.respondToBookingRequest = async (req, res, next) => {
     try {

@@ -1,5 +1,5 @@
 const express = require('express');
-const { getBookings, getBooking, addBooking, updateBooking, deleteBooking, cancelBooking, updatePaidBooking, respondToBookingRequest, mockPayBooking } = require('../controllers/bookings');
+const { getBookings, getBooking, addBooking, updateBooking, deleteBooking, cancelBooking, updatePaidBooking, getBookingRequests, respondToBookingRequest, mockPayBooking } = require('../controllers/bookings');
 
 const router = express.Router({ mergeParams: true });
 
@@ -86,6 +86,9 @@ const { protect, authorize } = require('../middleware/auth');
 router.route('/')
     .get(protect, getBookings)
     .post(protect, authorize('admin', 'user'), addBooking);
+
+// Must be defined BEFORE /:id to prevent Express matching "requests" as a booking id
+router.get('/requests', protect, authorize('admin'), getBookingRequests);
 
 /**
  * @swagger

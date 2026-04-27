@@ -131,7 +131,7 @@ exports.updateProfile = async(req, res, next) => {
         };
 
         const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
-            new: true,
+            returnDocument: 'after',
             runValidators: true
         });
 
@@ -152,7 +152,7 @@ exports.deactivateAccount = async(req, res, next) => {
         const user = await User.findByIdAndUpdate(
             req.user.id, 
             { isActive: false },
-            { new: true }
+            { returnDocument: 'after' }
         );
 
         if (!user) {
@@ -180,8 +180,27 @@ exports.deactivateAccount = async(req, res, next) => {
     }
 }
 
-// อย่าลืมเช็คว่าด้านบนมีการเรียกใช้ User model แล้ว 
-// const User = require('../models/User');
+// @desc    Get all users — optionally filter by role (?role=owner|user|admin)
+// @route   GET /api/v1/auth/users
+// @access  Private (Admin only)
+exports.getUsers = async (req, res, next) => {
+    try {
+        const filter = {};
+        if (req.query.role) {
+            filter.role = req.query.role;
+        }
+
+        const users = await User.find(filter).select('-password').sort('name');
+
+        res.status(200).json({
+            success: true,
+            count: users.length,
+            data: users
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};
 
 // @desc    Update user role (Assign/Revoke Hotel Owner)
 // @route   PUT /api/v1/auth/users/:userId/role
@@ -203,16 +222,12 @@ exports.updateUserRole = async (req, res, next) => {
 
         // 2. จัดการเงื่อนไขตาม Role
         if (role === 'owner') {
-            // ถ้าจะโปรโมทเป็น Owner ต้องระบุว่าให้เป็นเจ้าของโรงแรมไหน
-            if (!hotelId) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: 'Please provide a hotelId to assign to this owner' 
-                });
+            // hotelId is optional — assign the hotel if provided; role is set either way
+            if (hotelId) {
+                updateData.hotel = hotelId;
             }
-            updateData.hotel = hotelId;
         } else if (role === 'user') {
-            // ถ้ายกเลิกสิทธิ์ (Revoke) กลับเป็น User ธรรมดา ให้ลบการเชื่อมโยงกับโรงแรมออก
+            // Revoke owner — remove hotel linkage
             updateData.$unset = { hotel: 1 };
         }
 
@@ -221,7 +236,7 @@ exports.updateUserRole = async (req, res, next) => {
             userId,
             role === 'user' ? { role: 'user', $unset: { hotel: 1 } } : updateData,
             { 
-                new: true, 
+                returnDocument: 'after', 
                 runValidators: true 
             }
         ).select('-password'); // ไม่ส่ง password กลับไปเพื่อความปลอดภัย

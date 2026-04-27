@@ -1,8 +1,8 @@
 const express = require('express');
-const {register, login, getMe, logout, updateProfile, deactivateAccount, updateUserRole} = require('../controllers/auth');
+const { register, login, getMe, logout, updateProfile, deactivateAccount, updateUserRole, getUsers } = require('../controllers/auth');
 
 const router = express.Router();
-const {protect} =  require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 
 /**
  * @swagger
@@ -236,7 +236,10 @@ router.delete('/deactivate', protect, deactivateAccount);
  */
 router.get('/logout', logout);
 
-// Admin update user role
+// Admin: list all users, optionally filter by role (?role=owner)
+router.get('/users', protect, authorize('admin'), getUsers);
+
+// Admin: update a user's role
 router.put('/users/:userId/role', protect, authorize('admin'), updateUserRole);
 
 

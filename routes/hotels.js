@@ -135,6 +135,11 @@ router.route('/')
     .get(getHotels)
     .post(protect, authorize('admin'), createHotel);
 
+// Static routes MUST be defined before any /:param routes to avoid Express
+// treating the literal segment (e.g. "admin") as a dynamic parameter.
+router.route('/admin/dashboard')
+    .get(protect, authorize('admin'), getAdminPlatformStats);
+
 /**
  * @swagger
  * /hotels/{id}:
@@ -226,9 +231,6 @@ router.route('/:hotelId/financial/export')
 
 router.route('/:hotelId/dashboard')
     .get(protect, authorize('admin', 'owner'), getHotelDashboard);
-
-router.route('/admin/dashboard')
-    .get(protect, authorize('admin'), getAdminPlatformStats);
 
 router.route('/:id')
     .get(getHotel)

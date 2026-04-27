@@ -130,7 +130,7 @@ exports.updateHotel = async (req, res, next) => {
             req.params.id,
             req.body,
             {
-                new: true,
+                returnDocument: 'after',
                 runValidators: true
             }
         );
@@ -174,9 +174,6 @@ exports.deleteHotel = async (req, res, next) => {
         });
     }
 };
-
-const Booking = require('../models/Booking');
-const Hotel = require('../models/Hotel');
 
 // @desc    Get hotel financial statistics
 // @route   GET /api/v1/hotels/:hotelId/financial
@@ -356,63 +353,85 @@ exports.getHotelDashboard = async (req, res, next) => {
 };
 
 const User = require('../models/User');
-// (สมมติว่าด้านบนมี const Booking = require('../models/Booking'); และ Hotel อยู่แล้ว)
 
-// @desc    Get global platform statistics for Admin Dashboard
+// @desc    Get global platform statistics + per-hotel breakdown for Admin Dashboard
 // @route   GET /api/v1/hotels/admin/dashboard
 // @access  Private (Admin only)
 exports.getAdminPlatformStats = async (req, res, next) => {
     try {
-        // 1. สถิติฝั่ง User (นับจำนวน User ทั่วไป และ Owner)
-        const totalUsers = await User.countDocuments();
-        const totalOwners = await User.countDocuments({ role: 'owner' });
+        // --- Platform-wide counts (parallel) ---
+        const [totalUsers, totalOwners, totalHotels, totalBookings, confirmedBookings, cancelledBookings] =
+            await Promise.all([
+                User.countDocuments(),
+                User.countDocuments({ role: 'owner' }),
+                Hotel.countDocuments(),
+                Booking.countDocuments(),
+                Booking.countDocuments({ status: 'confirmed' }),
+                Booking.countDocuments({ status: 'cancelled' }),
+            ]);
 
-        // 2. สถิติฝั่งโรงแรม
-        const totalHotels = await Hotel.countDocuments();
+        // --- Fetch all bookings once for revenue + per-hotel stats ---
+        const [allBookings, hotels, globalRecentBookings] = await Promise.all([
+            Booking.find().select('hotel checkInDate totalPrice status paymentStatus'),
+            Hotel.find().select('name'),
+            Booking.find()
+                .sort('-createdAt')
+                .limit(10)
+                .populate({ path: 'hotel', select: 'name' })
+                .populate({ path: 'user',  select: 'name email' }),
+        ]);
 
-        // 3. สถิติฝั่งการจอง (รวมทุกโรงแรมในระบบ)
-        const totalBookings = await Booking.countDocuments();
-        const confirmedBookings = await Booking.countDocuments({ status: 'confirmed' });
-        const cancelledBookings = await Booking.countDocuments({ status: 'cancelled' });
+        const totalPlatformRevenue = allBookings
+            .filter(b => b.paymentStatus === 'paid')
+            .reduce((sum, b) => sum + (b.totalPrice || 0), 0);
 
-        // 4. คำนวณรายได้รวมของทั้งแพลตฟอร์ม (Platform Gross Revenue)
-        const paidBookings = await Booking.find({ paymentStatus: 'paid' });
-        const totalPlatformRevenue = paidBookings.reduce((sum, b) => sum + b.totalPrice, 0);
+        // --- Per-hotel stats (group in memory — no extra DB round-trips) ---
+        const bookingsByHotel = {};
+        allBookings.forEach(b => {
+            const id = b.hotel.toString();
+            if (!bookingsByHotel[id]) bookingsByHotel[id] = [];
+            bookingsByHotel[id].push(b);
+        });
 
-        // 5. ดึงรายการจองล่าสุดที่เกิดขึ้นในระบบ (10 รายการ) เพื่อแสดงในตาราง Recent Activity
-        const globalRecentBookings = await Booking.find()
-            .sort('-createdAt')
-            .limit(10)
-            .populate({
-                path: 'hotel',
-                select: 'name'
-            })
-            .populate({
-                path: 'user',
-                select: 'name email'
+        const hotelStats = hotels.map(hotel => {
+            const hBookings = bookingsByHotel[hotel._id.toString()] || [];
+            const monthlyBookings = Array(12).fill(0);
+            let totalRevenue = 0;
+            let pendingBookings = 0;
+
+            hBookings.forEach(b => {
+                const month = new Date(b.checkInDate).getMonth();
+                if (month >= 0 && month < 12) monthlyBookings[month]++;
+                if (b.paymentStatus === 'paid') totalRevenue += (b.totalPrice || 0);
+                if (b.status === 'pending') pendingBookings++;
             });
 
-        // ส่งข้อมูลรวบยอดกลับไปให้หน้า Frontend Admin Dashboard
+            return {
+                _id:             hotel._id,
+                name:            hotel.name,
+                totalBookings:   hBookings.length,
+                totalRevenue,
+                pendingBookings,
+                monthlyBookings,
+            };
+        });
+
         res.status(200).json({
             success: true,
             data: {
                 platformStats: {
-                    users: {
-                        total: totalUsers,
-                        owners: totalOwners
-                    },
-                    hotels: {
-                        total: totalHotels
-                    },
+                    users:    { total: totalUsers, owners: totalOwners },
+                    hotels:   { total: totalHotels },
                     bookings: {
                         total: totalBookings,
                         confirmed: confirmedBookings,
                         cancelled: cancelledBookings,
-                        totalRevenue: totalPlatformRevenue
-                    }
+                        totalRevenue: totalPlatformRevenue,
+                    },
                 },
-                recentActivity: globalRecentBookings
-            }
+                hotelStats,
+                recentActivity: globalRecentBookings,
+            },
         });
 
     } catch (err) {

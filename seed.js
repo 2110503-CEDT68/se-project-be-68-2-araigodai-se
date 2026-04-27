@@ -69,31 +69,36 @@ const seedData = async () => {
     const hotel1 = await Hotel.create({
       name: 'Grand Hotel Bangkok',
       address: '123 Sukhumvit Road, Watthana, Bangkok 10110',
-      telephone: '021234567'
+      telephone: '021234567',
+      pricePerNight: 2500
     });
 
     const hotel2 = await Hotel.create({
       name: 'Riverside Resort Chiang Mai',
       address: '456 Ping River Road, Muang, Chiang Mai 50000',
-      telephone: '053987654'
+      telephone: '053987654',
+      pricePerNight: 1800
     });
 
     const hotel3 = await Hotel.create({
       name: 'Beach Paradise Phuket',
       address: '789 Patong Beach Road, Kathu, Phuket 83150',
-      telephone: '076555666'
+      telephone: '076555666',
+      pricePerNight: 3200
     });
 
     const hotel4 = await Hotel.create({
       name: 'Mountain View Hotel Pai',
       address: '321 Mountain Road, Pai, Mae Hong Son 58130',
-      telephone: '053698745'
+      telephone: '053698745',
+      pricePerNight: 1200
     });
 
     const hotel5 = await Hotel.create({
       name: 'City Center Hotel Pattaya',
       address: '654 Beach Road, Pattaya City, Chonburi 20150',
-      telephone: '038123456'
+      telephone: '038123456',
+      pricePerNight: 2000
     });
 
     console.log(`Created ${5} hotels`.green);
@@ -105,6 +110,10 @@ const seedData = async () => {
     await Booking.create({
       checkInDate: new Date('2024-12-25'),
       numberOfNights: 2,
+      totalPrice: 2500 * 2,
+      amountPaid: 2500 * 2,
+      paymentStatus: 'paid',
+      status: 'confirmed',
       user: user1._id,
       hotel: hotel1._id
     });
@@ -112,6 +121,10 @@ const seedData = async () => {
     await Booking.create({
       checkInDate: new Date('2025-01-15'),
       numberOfNights: 3,
+      totalPrice: 1800 * 3,
+      amountPaid: 1800 * 3,
+      paymentStatus: 'paid',
+      status: 'confirmed',
       user: user1._id,
       hotel: hotel2._id
     });
@@ -120,6 +133,10 @@ const seedData = async () => {
     await Booking.create({
       checkInDate: new Date('2024-12-28'),
       numberOfNights: 1,
+      totalPrice: 3200 * 1,
+      amountPaid: 3200 * 1,
+      paymentStatus: 'paid',
+      status: 'confirmed',
       user: user2._id,
       hotel: hotel3._id
     });
@@ -127,6 +144,10 @@ const seedData = async () => {
     await Booking.create({
       checkInDate: new Date('2025-02-10'),
       numberOfNights: 2,
+      totalPrice: 1200 * 2,
+      amountPaid: 1200 * 2,
+      paymentStatus: 'paid',
+      status: 'confirmed',
       user: user2._id,
       hotel: hotel4._id
     });
@@ -135,6 +156,10 @@ const seedData = async () => {
     await Booking.create({
       checkInDate: new Date('2025-01-05'),
       numberOfNights: 3,
+      totalPrice: 2000 * 3,
+      amountPaid: 2000 * 3,
+      paymentStatus: 'paid',
+      status: 'confirmed',
       user: user3._id,
       hotel: hotel5._id
     });
@@ -142,6 +167,10 @@ const seedData = async () => {
     await Booking.create({
       checkInDate: new Date('2025-03-20'),
       numberOfNights: 2,
+      totalPrice: 2500 * 2,
+      amountPaid: 2500 * 2,
+      paymentStatus: 'paid',
+      status: 'confirmed',
       user: user3._id,
       hotel: hotel1._id
     });
