@@ -110,14 +110,7 @@ exports.createHotel = async (req, res, next) => {
 
 exports.updateHotel = async (req, res, next) => {
     try {
-        const hotel = await Hotel.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            {
-                new: true,
-                runValidators: true
-            }
-        );
+        let hotel = await Hotel.findById(req.params.id);
 
         if (!hotel) {
             return res.status(404).json({
@@ -125,6 +118,22 @@ exports.updateHotel = async (req, res, next) => {
                 message: 'Hotel not found'
             });
         }
+
+        if (req.user.role === 'owner' && hotel._id.toString() !== req.user.hotel.toString()) {
+            return res.status(403).json({
+                success: false,
+                message: `Owner ${req.user.id} is not authorized to update this hotel`
+            });
+        }
+
+        hotel = await Hotel.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            {
+                new: true,
+                runValidators: true
+            }
+        );
 
         res.status(200).json({
             success: true,

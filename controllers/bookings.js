@@ -414,15 +414,19 @@ exports.updateBooking = async (req, res, next) => {
             });
         }
 
-        if (booking.user.toString() !== req.user.id && req.user.role !== 'admin') {
+        const isBookingOwner = booking.user.toString() === req.user.id;
+        const isAdmin = req.user.role === 'admin';
+        const isHotelOwner = req.user.role === 'owner' && req.user.hotel && booking.hotel.toString() === req.user.hotel.toString();
+
+        if (!isBookingOwner && !isAdmin && !isHotelOwner) {
             return res.status(403).json({
                 success: false,
                 message: `User ${req.user.id} is not authorized to update this booking`
             });
         }
 
-        if (req.user.role === 'admin') {
-            if (!req.body.updateReason && !req.body.reason) { // check for updateReason or reason
+        if (req.user.role === 'admin' || req.user.role === 'owner') {
+            if (!req.body.updateReason && !req.body.reason) { 
                 return res.status(400).json({
                     success: false,
                     message: 'Please provide a reason for this change.'

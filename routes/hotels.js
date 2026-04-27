@@ -220,7 +220,7 @@ router.route('/')
  */
 router.route('/:id')
     .get(getHotel)
-    .put(protect, authorize('admin'), updateHotel)
+    .put(protect, authorize('admin', 'owner'), updateHotel)
     .delete(protect, authorize('admin'), deleteHotel);
 
 module.exports = router;
