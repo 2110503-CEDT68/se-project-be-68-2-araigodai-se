@@ -214,8 +214,9 @@ exports.addBooking = async (req, res, next) => {
         }
 
         req.body.totalPrice = toMoney(pricePerNight * req.body.numberOfNights);
-        req.body.amountPaid = req.body.totalPrice;
-        req.body.paymentStatus = 'paid';
+        req.body.amountPaid = 0;
+        req.body.paymentStatus = 'unpaid';
+        req.body.status = 'pending';
 
         const booking = await Booking.create(req.body);
 
