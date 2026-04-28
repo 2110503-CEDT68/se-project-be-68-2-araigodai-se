@@ -735,7 +735,7 @@ exports.respondToBookingRequest = async (req, res, next) => {
         const { requestId } = req.params;
         const { action, reason } = req.body; // action: 'approve' or 'reject'
 
-        if (req.user.role !== 'admin') {
+        if (req.user.role !== 'admin' && req.user.role !== 'owner') {
             return res.status(403).json({
                 success: false,
                 message: 'Not authorized to perform this operation'

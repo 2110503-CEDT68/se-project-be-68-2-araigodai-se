@@ -557,6 +557,6 @@ router.patch('/:id/paid-update', protect, authorize('admin', 'user', 'owner'), u
  *       404:
  *         description: Request not found
  */
-router.put('/requests/:requestId/respond', protect, authorize('admin'), respondToBookingRequest);
+router.put('/requests/:requestId/respond', protect, authorize('admin', 'owner'), respondToBookingRequest);
 
 module.exports = router;
