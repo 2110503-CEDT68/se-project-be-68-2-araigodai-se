@@ -236,10 +236,91 @@ router.delete('/deactivate', protect, deactivateAccount);
  */
 router.get('/logout', logout);
 
-// Admin: list all users, optionally filter by role (?role=owner)
+/**
+ * @swagger
+ * /auth/users:
+ *   get:
+ *     summary: Get all users (Admin only)
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *           enum: [user, admin, owner]
+ *         description: Filter users by role
+ *     responses:
+ *       200:
+ *         description: List of users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 count:
+ *                   type: integer
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - Admin only
+ */
 router.get('/users', protect, authorize('admin'), getUsers);
 
-// Admin: update a user's role
+/**
+ * @swagger
+ * /auth/users/{userId}/role:
+ *   put:
+ *     summary: Update a user's role (Admin only)
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - role
+ *             properties:
+ *               role:
+ *                 type: string
+ *                 enum: [user, admin, owner]
+ *                 example: owner
+ *     responses:
+ *       200:
+ *         description: User role updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/User'
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - Admin only
+ *       404:
+ *         description: User not found
+ */
 router.put('/users/:userId/role', protect, authorize('admin'), updateUserRole);
 
 

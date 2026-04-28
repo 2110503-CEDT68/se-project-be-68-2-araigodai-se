@@ -137,9 +137,64 @@ router.route('/')
 
 // Static routes MUST be defined before any /:param routes to avoid Express
 // treating the literal segment (e.g. "admin") as a dynamic parameter.
+/**
+ * @swagger
+ * /hotels/admin/dashboard:
+ *   get:
+ *     summary: Get platform-wide admin stats (Admin only)
+ *     tags: [Hotels]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Admin platform statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   description: Aggregated platform stats (bookings, revenue, hotels, users)
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - Admin only
+ */
 router.route('/admin/dashboard')
     .get(protect, authorize('admin'), getAdminPlatformStats);
 
+/**
+ * @swagger
+ * /hotels/my-hotels:
+ *   get:
+ *     summary: Get hotels owned by the current owner (Owner only)
+ *     tags: [Hotels]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of hotels owned by the authenticated owner
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 count:
+ *                   type: integer
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Hotel'
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - Owner only
+ */
 router.route('/my-hotels')
     .get(protect, authorize('owner'), getMyHotels);
 
@@ -226,19 +281,197 @@ router.route('/my-hotels')
  *       404:
  *         description: Hotel not found
  */
+/**
+ * @swagger
+ * /hotels/{hotelId}/financial:
+ *   get:
+ *     summary: Get financial stats for a hotel (Admin or Owner)
+ *     tags: [Hotels]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: hotelId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Hotel ID
+ *     responses:
+ *       200:
+ *         description: Financial statistics for the hotel
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   description: Revenue, booking counts, and other financial data
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - Admin or Owner only
+ *       404:
+ *         description: Hotel not found
+ */
 router.route('/:hotelId/financial')
     .get(protect, authorize('admin', 'owner'), getFinancialStats);
 
+/**
+ * @swagger
+ * /hotels/{hotelId}/financial/export:
+ *   get:
+ *     summary: Export financial data as CSV (Admin or Owner)
+ *     tags: [Hotels]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: hotelId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Hotel ID
+ *     responses:
+ *       200:
+ *         description: CSV file download
+ *         content:
+ *           text/csv:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - Admin or Owner only
+ *       404:
+ *         description: Hotel not found
+ */
 router.route('/:hotelId/financial/export')
     .get(protect, authorize('admin', 'owner'), exportFinancialCSV);
 
+/**
+ * @swagger
+ * /hotels/{hotelId}/dashboard:
+ *   get:
+ *     summary: Get dashboard stats for a specific hotel (Admin or Owner)
+ *     tags: [Hotels]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: hotelId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Hotel ID
+ *     responses:
+ *       200:
+ *         description: Hotel dashboard data
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   description: Occupancy, revenue, recent bookings summary
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - Admin or Owner only
+ *       404:
+ *         description: Hotel not found
+ */
 router.route('/:hotelId/dashboard')
     .get(protect, authorize('admin', 'owner'), getHotelDashboard);
 
+/**
+ * @swagger
+ * /hotels/{hotelId}/booking-requests:
+ *   get:
+ *     summary: Get pending booking requests for a hotel (Admin or Owner)
+ *     tags: [Hotels]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: hotelId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Hotel ID
+ *     responses:
+ *       200:
+ *         description: List of booking requests for the hotel
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 count:
+ *                   type: integer
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - Admin or Owner only
+ *       404:
+ *         description: Hotel not found
+ */
 router.route('/:hotelId/booking-requests')
     .get(protect, authorize('admin', 'owner'), getHotelBookingRequests);
 
-// Availability check — public, used by booking and edit pages
+/**
+ * @swagger
+ * /hotels/{hotelId}/availability:
+ *   get:
+ *     summary: Check room availability for a hotel (Public)
+ *     tags: [Hotels]
+ *     parameters:
+ *       - in: path
+ *         name: hotelId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Hotel ID
+ *       - in: query
+ *         name: checkInDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Desired check-in date
+ *       - in: query
+ *         name: numberOfNights
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 3
+ *         description: Number of nights
+ *     responses:
+ *       200:
+ *         description: Availability result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 available:
+ *                   type: boolean
+ *       404:
+ *         description: Hotel not found
+ */
 router.route('/:hotelId/availability')
     .get(checkAvailability);
 

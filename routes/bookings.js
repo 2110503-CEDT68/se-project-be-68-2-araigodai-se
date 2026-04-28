@@ -87,8 +87,79 @@ router.route('/')
     .get(protect, getBookings)
     .post(protect, authorize('admin', 'user'), addBooking);
 
-// Must be defined BEFORE /:id to prevent Express matching "requests" as a booking id
+/**
+ * @swagger
+ * /bookings/requests:
+ *   get:
+ *     summary: Get all pending booking change requests (Admin only)
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of all user-submitted booking requests
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 count:
+ *                   type: integer
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                       booking:
+ *                         type: string
+ *                       user:
+ *                         type: string
+ *                       action:
+ *                         type: string
+ *                         enum: [edit, delete]
+ *                       status:
+ *                         type: string
+ *                         enum: [pending, approved, rejected]
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - Admin only
+ */
 router.get('/requests', protect, authorize('admin'), getBookingRequests);
+
+/**
+ * @swagger
+ * /bookings/my-requests:
+ *   get:
+ *     summary: Get booking change requests submitted by the current user
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of the user's own booking requests
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 count:
+ *                   type: integer
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - User only
+ */
 router.get('/my-requests', protect, authorize('user'), getMyBookingRequests);
 
 /**
@@ -301,8 +372,97 @@ router.route('/:id')
  */
 router.post('/:id/cancel', protect, authorize('admin', 'user', 'owner'), cancelBooking);
 
-// User submits an edit/delete request for admin approval
+/**
+ * @swagger
+ * /bookings/{id}/request:
+ *   post:
+ *     summary: Submit an edit or delete request for admin approval (User only)
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Booking ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [edit, delete]
+ *                 description: Type of change being requested
+ *               reason:
+ *                 type: string
+ *                 description: Reason for the request
+ *               newCheckInDate:
+ *                 type: string
+ *                 format: date
+ *                 description: New check-in date (if action is edit)
+ *               newNumberOfNights:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 3
+ *                 description: New number of nights (if action is edit)
+ *     responses:
+ *       201:
+ *         description: Request submitted successfully and pending admin review
+ *       400:
+ *         description: Invalid input or booking not eligible for request
+ *       401:
+ *         description: Not authorized
+ *       403:
+ *         description: Forbidden - User only
+ *       404:
+ *         description: Booking not found
+ */
 router.post('/:id/request', protect, authorize('user'), createBookingRequest);
+
+/**
+ * @swagger
+ * /bookings/{id}/mock-pay:
+ *   post:
+ *     summary: Simulate a payment for a booking (Admin or User)
+ *     tags: [Bookings]
+ *     security:
+ *       - bearerAuth: []
+ *     description: Mock payment endpoint for testing purposes. Marks booking as paid/confirmed.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Booking ID
+ *     responses:
+ *       200:
+ *         description: Payment simulated and booking marked as paid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Booking'
+ *       400:
+ *         description: Booking already paid or not eligible
+ *       401:
+ *         description: Not authorized
+ *       404:
+ *         description: Booking not found
+ */
+router.route('/:id/mock-pay')
+    .post(protect, authorize('admin', 'user'), mockPayBooking);
 
 /**
  * @swagger
@@ -398,8 +558,5 @@ router.patch('/:id/paid-update', protect, authorize('admin', 'user', 'owner'), u
  *         description: Request not found
  */
 router.put('/requests/:requestId/respond', protect, authorize('admin'), respondToBookingRequest);
-
-router.route('/:id/mock-pay')
-    .post(protect, authorize('admin', 'user'), mockPayBooking);
 
 module.exports = router;
