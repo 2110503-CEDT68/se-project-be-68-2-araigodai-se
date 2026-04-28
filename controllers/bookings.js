@@ -218,6 +218,39 @@ exports.addBooking = async (req, res, next) => {
         req.body.paymentStatus = 'unpaid';
         req.body.status = 'pending';
 
+        // Check room availability before creating booking
+        if (req.body.roomType) {
+            const roomTypeDef = hotel.roomTypes.find(rt => rt.id === req.body.roomType);
+            if (roomTypeDef && roomTypeDef.totalRooms > 0) {
+                const checkIn  = new Date(req.body.checkInDate);
+                const checkOut = new Date(checkIn.getTime() + req.body.numberOfNights * 24 * 60 * 60 * 1000);
+
+                const overlapping = await Booking.countDocuments({
+                    hotel: req.params.hotelId,
+                    roomType: req.body.roomType,
+                    status: { $ne: 'cancelled' },
+                    $expr: {
+                        $and: [
+                            { $lt: ['$checkInDate', checkOut] },
+                            {
+                                $gt: [
+                                    { $add: ['$checkInDate', { $multiply: ['$numberOfNights', 24 * 60 * 60 * 1000] }] },
+                                    checkIn
+                                ]
+                            }
+                        ]
+                    }
+                });
+
+                if (overlapping >= roomTypeDef.totalRooms) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'No rooms available on the selected dates.'
+                    });
+                }
+            }
+        }
+
         const booking = await Booking.create(req.body);
 
         res.status(201).json({
