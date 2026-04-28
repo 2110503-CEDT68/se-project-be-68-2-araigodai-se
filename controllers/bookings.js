@@ -820,6 +820,8 @@ exports.mockPayBooking = async (req, res, next) => {
         // 2. Update the database automatically
         booking.paymentStatus = 'paid';
         booking.status = 'confirmed';
+        booking.amountPaid = booking.totalPrice; // record actual amount paid
+        booking.paidAt = new Date();
         
         // Save the updated booking
         await booking.save();
